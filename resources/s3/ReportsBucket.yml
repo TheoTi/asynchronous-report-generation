@@ -1,0 +1,15 @@
+Resources:
+  ReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: jstack-reports-bucket
+      LifecycleConfiguration:
+        Rules:
+          - Id: auto-delete-after-1-day
+            Status: Enabled
+            ExpirationInDays: 1
+
+          - Id: auto-delete-mpus-after-1-day
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1

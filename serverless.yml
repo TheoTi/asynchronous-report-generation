@@ -1,0 +1,96 @@
+org: theodev
+service: live039
+
+plugins:
+  - serverless-dotenv-plugin
+
+useDotenv: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: sa-east-1
+  memorySize: 128
+
+  environment:
+    DYNAMO_LEADS_TABLE: !Ref LeadsTable
+    GENERATE_REPORT_QUEUE_URL: !Ref GenerateReportQueue
+    REPORT_BUCKET_NAME: !Ref ReportsBucket
+    RESEND_API_KEY: ${env:RESEND_API_KEY}
+
+  iam:
+    role:
+      statements:
+        # DynamoDB
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:Scan
+          Resource: !GetAtt LeadsTable.Arn
+
+        # SQS
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+          Resource: !GetAtt GenerateReportQueue.Arn
+
+        # S3
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:AbortMultipartUpload
+            - s3:GetObject
+          Resource:
+            - !GetAtt ReportsBucket.Arn
+            - !Join ["/", [!GetAtt ReportsBucket.Arn, "*"]]
+
+package:
+  individually: true
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    external:
+      - react-dom/server
+      - "@react-email/render"
+      - react
+    exclude:
+      - "@aws-sdk/*"
+
+functions:
+  populateDynamoDB:
+    handler: src/functions/http/populateDynamoDB.handler
+    timeout: 25
+    events:
+      - httpApi:
+          path: /populate-dynamodb
+          method: POST
+
+  generateReport:
+    handler: src/functions/http/generateReport.handler
+    timeout: 25
+    events:
+      - httpApi:
+          path: /generate-report
+          method: POST
+
+  processReport:
+    handler: src/functions/queues/processReport.handler
+    timeout: 180
+    memorySize: 512
+    events:
+      - sqs:
+          arn: !GetAtt GenerateReportQueue.Arn
+          batchSize: 1
+    package:
+      include:
+        - "node_modules/@react-email/**"
+        - "node_modules/react-dom/**"
+        - "node_modules/react/**"
+
+resources:
+  - ${file(./resources/dynamodb/LeadsTable.yml)}
+  - ${file(./resources/sqs/GenerateReportQueue.yml)}
+  - ${file(./resources/s3/ReportsBucket.yml)}

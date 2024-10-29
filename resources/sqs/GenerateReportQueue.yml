@@ -1,0 +1,16 @@
+Resources:
+  GenerateReportQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: GenerateReport
+      ReceiveMessageWaitTimeSeconds: 20
+      VisibilityTimeout: 180
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt GenerateReportQueueDLQ.Arn
+        maxReceiveCount: 2
+
+  GenerateReportQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: GenerateReportDLQ
+      MessageRetentionPeriod: 1209600 # 14 days
